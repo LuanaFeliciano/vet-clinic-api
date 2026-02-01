@@ -9,8 +9,6 @@ use App\Http\Requests\Auth\RegisterClinicRequest;
 use App\Models\Clinic;
 use App\Models\User;
 use App\Services\AuthService;
-use Illuminate\Auth\Events\Verified;
-use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;

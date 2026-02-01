@@ -23,6 +23,7 @@ services:
             - sail
         depends_on:
             - pgsql
+            - mailpit
     pgsql:
         image: 'postgres:18-alpine'
         ports:
