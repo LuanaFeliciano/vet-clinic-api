@@ -93,11 +93,18 @@ Para manter a qualidade do código, utilizamos scripts personalizados no Compose
 
 ## 📧 Testando E-mails (Mailpit)
 
-O projeto utiliza o **Mailpit** para interceptar e-mails em ambiente local.
-Acesse o painel para ver os links de verificação e reset de senha:
+O projeto utiliza o **Mailpit** para interceptar e-mails em ambiente local (dev), garantindo que nenhum e-mail real seja disparado.
 
-👉 **http://localhost:8025**
+Acesse o painel para visualizar os links de **verificação de conta** e **redefinição de senha**:
 
+👉 **[Acessar Mailpit (http://localhost:8025)](http://localhost:8025)**
+
+---
+
+### 📸 Exemplo: E-mail de Verificação
+Ao realizar o cadastro, o seguinte e-mail será interceptado pelo Mailpit:
+
+![E-mail de Verificação](https://github.com/user-attachments/assets/d4387634-1472-49b0-8da7-206c3e3fc79a)
 ---
 
 ## 📚 Documentação da API

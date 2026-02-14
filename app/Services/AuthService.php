@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class AuthService
-{
+{   //registrar clinica e admin
     public function registerTenant(array $data): array
     {
 

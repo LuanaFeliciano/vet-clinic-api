@@ -13,6 +13,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * @group Autenticação
+ *
+ * APIs para gerenciamento de registro, login e sessões de usuários.
+ */
 class AuthController extends Controller
 {
     protected $authService;
@@ -25,14 +30,26 @@ class AuthController extends Controller
     /**
      * Registrar Nova Clínica
      *
-     * Cria uma nova clínica, um usuário admin e envia o e-mail de verificação.
+     * Cria uma nova clínica, registra um usuário administrador vinculado a ela e dispara o e-mail de verificação.
      *
-     * @group Autenticação
+     * @unauthenticated
      *
      * @response 201 {
      * "message": "Cadastro realizado com sucesso! Verifique seu e-mail.",
-     * "token": "1|aBcDeFg...",
-     * "user": { "id": 1, "name": "Dr. João", "role": "admin" }
+     * "user": {
+     * "id": 1,
+     * "name": "Dr. João Silva",
+     * "email": "joao@clinica.com",
+     * "role": "admin",
+     * "created_at": "2024-02-14T10:00:00.000000Z"
+     * },
+     * "token": "1|aBcDeFgHijK..."
+     * }
+     * @response 422 {
+     * "message": "O valor do campo e-mail já está em uso.",
+     * "errors": {
+     * "email": ["O valor do campo e-mail já está em uso."]
+     * }
      * }
      */
     public function register(RegisterClinicRequest $request)
@@ -47,15 +64,35 @@ class AuthController extends Controller
     }
 
     /**
-     * Logar no Sistema
+     * Login no Sistema
      *
-     * Loga o Usuário com email e senha
+     * Autentica o usuário utilizando e-mail e senha. Retorna um token Sanctum com "abilities" baseadas no cargo (role) do usuário.
+     * Também verifica se a clínica do usuário está ativa.
      *
-     * @group Autenticação
+     * @unauthenticated
+     *
+     * @bodyParam email string required O e-mail do usuário. Example: admin@clinica.com
+     * @bodyParam password string required A senha do usuário. Example: senha123
      *
      * @response 200 {
-     * "token": "1|aBcDeFg...",
-     * "user": { "id": 1, "name": "Dr. João", "role": "admin" }
+     * "user": {
+     * "id": 1,
+     * "name": "Dr. João",
+     * "role": "vet",
+     * "clinic": {
+     * "id": 1,
+     * "name": "Vet Clinic",
+     * "is_active": true
+     * }
+     * },
+     * "token": "2|LikM..."
+     * }
+     *
+     * @response 422 {
+     * "message": "As credenciais fornecidas estão incorretas.",
+     * "errors": {
+     * "email": ["As credenciais fornecidas estão incorretas."]
+     * }
      * }
      */
     public function login(Request $request)
@@ -96,6 +133,17 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Logout
+     *
+     * Revoga o token de acesso atual do usuário, encerrando a sessão.
+     *
+     * @authenticated
+     *
+     * @response 200 {
+     * "message": "Logout realizado com sucesso."
+     * }
+     */
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
@@ -104,7 +152,14 @@ class AuthController extends Controller
     }
 
     /**
-     * Verifica o e-mail do usuário (Link clicado no e-mail)
+     * Verificar E-mail
+     *
+     * Valida o link de verificação enviado por e-mail. Se for válido, redireciona o usuário para o sistema.
+     *
+     * @urlParam id int required O ID do usuário.
+     * @urlParam hash string required O hash de verificação.
+     *
+     * @response 302 Redireciona para http://localhost:4200/login?verified=true
      */
     public function verifyEmail(ApiEmailVerificationRequest $request)
     {
@@ -113,6 +168,20 @@ class AuthController extends Controller
         return redirect('http://localhost:4200/login?verified=true');
     }
 
+    /**
+     * Reenviar E-mail de Verificação
+     *
+     * Envia um novo link de verificação para o e-mail do usuário autenticado, caso ainda não tenha sido verificado.
+     *
+     * @authenticated
+     *
+     * @response 200 {
+     * "message": "Link de verificação reenviado!"
+     * }
+     * @response 400 {
+     * "message": "E-mail já verificado."
+     * }
+     */
     public function resendVerificationEmail(Request $request)
     {
         if ($request->user()->hasVerifiedEmail()) {
@@ -124,10 +193,26 @@ class AuthController extends Controller
         return response()->json(['message' => 'Link de verificação reenviado!']);
     }
 
+    /**
+     * Excluir Clínica (Admin)
+     *
+     * Exclui permanentemente uma clínica. Requer token com permissão total ('*').
+     *
+     * @authenticated
+     *
+     * @urlParam clinic int required O ID da clínica a ser deletada.
+     *
+     * @response 200 {
+     * "message": "Clínica Deletada"
+     * }
+     * @response 403 {
+     * "message": "Você não tem permissão para deletar clínicas."
+     * }
+     */
     public function destroy(Clinic $clinic)
     {
-        if (! request()->user()->tokenCan('*')) {// somente admin exclui a clinica
-            abort(403, 'Seu token não tem permissão para deletar clínicas.');
+        if (! request()->user()->tokenCan('*')) {
+            abort(403, 'Você não tem permissão para deletar clínicas.');
         }
 
         $clinic->delete();
