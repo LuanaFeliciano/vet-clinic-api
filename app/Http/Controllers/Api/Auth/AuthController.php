@@ -10,7 +10,10 @@ use App\Models\Clinic;
 use App\Models\User;
 use App\Services\AuthService;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -102,13 +105,13 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        if (! Auth::attempt($request->only('email', 'password'))) {
+        $user = User::where('email', $request->email)->first();
+
+        if (! $user || ! Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
                 'email' => ['As credenciais fornecidas estão incorretas.'],
             ]);
         }
-
-        $user = Auth::user();
 
         $user->load('clinic');
 
@@ -164,8 +167,8 @@ class AuthController extends Controller
     public function verifyEmail(ApiEmailVerificationRequest $request)
     {
         $request->fulfill();
-
-        return redirect('http://localhost:4200/login?verified=true');
+        $url = env('FRONTEND_URL');
+        return redirect("$url/login?verified=true");
     }
 
     /**
@@ -196,27 +199,99 @@ class AuthController extends Controller
     /**
      * Excluir Clínica (Admin)
      *
-     * Exclui permanentemente uma clínica. Requer token com permissão total ('*').
+     * Inativa uma clínica no sistema em vez de excluí-la.
      *
      * @authenticated
      *
      * @urlParam clinic int required O ID da clínica a ser deletada.
      *
      * @response 200 {
-     * "message": "Clínica Deletada"
+     * "message": "Clínica inativada com sucesso."
      * }
      * @response 403 {
      * "message": "Você não tem permissão para deletar clínicas."
      * }
      */
-    public function destroy(Clinic $clinic)
-    {
-        if (! request()->user()->tokenCan('*')) {
-            abort(403, 'Você não tem permissão para deletar clínicas.');
-        }
-
+    public function destroy(Clinic $clinic): JsonResponse
+    {   
+        $clinic->update(['is_active' => false]);
         $clinic->delete();
 
-        return response()->json(['message' => 'Clínica Deletada']);
+
+        $clinic->users()->each(function ($user) {
+            $user->tokens()->delete();
+        });
+
+        return response()->json(['message' => 'Clínica inativada e usuários desconectados com sucesso.']);
+    }
+
+    /**
+     * Solicitar Link de Redefinição de Senha
+     *
+     * Envia um link para o e-mail do usuário para que ele possa criar uma nova senha.
+     *
+     * @unauthenticated
+     *
+     * @bodyParam email string required O e-mail do usuário. Example: admin@clinica.com
+     *
+     * @response 200 {
+     *   "message": "Enviamos por e-mail o link para redefinição da sua senha."
+     * }
+     * @response 422 {
+     *   "message": "Não encontramos um usuário com esse endereço de e-mail."
+     * }
+     */
+    public function forgotPassword(Request $request): JsonResponse
+    {
+        $request->validate(['email' => 'required|email']);
+
+        // Envia o link de reset usando a infraestrutura do Laravel
+        $status = Password::sendResetLink($request->only('email'));
+
+        if ($status === Password::RESET_LINK_SENT) {
+            return response()->json(['message' => __($status)]);
+        }
+
+        // Se o e-mail não for encontrado, lança uma exceção de validação
+        throw ValidationException::withMessages([
+            'email' => [__($status)],
+        ]);
+    }
+
+    /**
+     * Redefinir Senha
+     *
+     * Cria uma nova senha para o usuário a partir do token de redefinição.
+     *
+     * @unauthenticated
+     *
+     * @bodyParam token string required O token recebido por e-mail.
+     * @bodyParam email string required O e-mail do usuário.
+     * @bodyParam password string required A nova senha. Mínimo 8 caracteres.
+     * @bodyParam password_confirmation string required A confirmação da nova senha.
+     *
+     * @response 200 {
+     *   "message": "Sua senha foi redefinida com sucesso."
+     * }
+     * @response 422 {
+     *   "message": "Este token de redefinição de senha é inválido."
+     * }
+     */
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'token' => 'required',
+            'email' => 'required|email',
+            'password' => 'required|confirmed|min:8',
+        ]);
+
+        // Tenta resetar a senha
+        $status = Password::reset($request->all(), function ($user, $password) {
+            $user->forceFill(['password' => Hash::make($password)])->save();
+        });
+
+        return $status === Password::PASSWORD_RESET
+            ? response()->json(['message' => __($status)])
+            : response()->json(['message' => __($status)], 422);
     }
 }

@@ -39,4 +39,21 @@ class AuthService
             ];
         });
     }
+
+    public function createEmployee(array $data, User $admin): User
+    {
+        return DB::transaction(function () use ($data, $admin) {
+            $employee = User::create([
+                'clinic_id' => $admin->clinic_id,
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => Hash::make($data['password']),
+                'role' => $data['role'],
+            ]);
+
+            event(new Registered($employee)); // dispara email de verificacao
+
+            return $employee;
+        });
+    }
 }

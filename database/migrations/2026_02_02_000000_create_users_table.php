@@ -22,6 +22,9 @@ return new class extends Migration
 
             $table->string('role')->default('vet'); // cargo (vet, recepcionista, admin)
 
+            $table->boolean('is_active')->default(true);
+            $table->softDeletes();
+            
             $table->rememberToken();
             $table->timestamps();
         });

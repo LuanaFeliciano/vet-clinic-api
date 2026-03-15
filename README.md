@@ -67,6 +67,10 @@ Pré-requisitos: Ter o **Docker** e o **Docker Compose** instalados.
     ./vendor/bin/sail artisan key:generate
     ./vendor/bin/sail artisan migrate
     ```
+6. **Fila de Email**
+    ```bash
+    ./vendor/bin/sail artisan queue:work
+    ```
 
 A API estará rodando em: `http://localhost:8000`
 
